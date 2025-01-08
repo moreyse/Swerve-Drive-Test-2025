@@ -13,22 +13,26 @@ import edu.wpi.first.math.kinematics.SwerveModuleState;
 import edu.wpi.first.math.trajectory.TrapezoidProfile;
 import edu.wpi.first.wpilibj.DutyCycleEncoder;
 import com.revrobotics.spark.SparkMax;
+import com.revrobotics.spark.SparkBase.PersistMode;
+import com.revrobotics.spark.SparkBase.ResetMode;
 import com.revrobotics.RelativeEncoder;
 import com.revrobotics.spark.SparkLowLevel.MotorType;
+import com.revrobotics.spark.config.SparkMaxConfig;
 
 
 public class SwerveModule {
-  
-  
-
+   
   private static final double kModuleMaxAngularVelocity = 20*Constants.kTurnMotorMaxAngSpeed;
   private static final double kModuleMaxAngularAcceleration =  80*Constants.kTurnMotorMaxAngSpeed*2;
 
-  public final CANSparkMax m_driveMotor;
-  public final CANSparkMax m_turningMotor;
+  public final SparkMax m_driveMotor;
+  public final SparkMaxConfig m_driveConfig = new SparkMaxConfig();
+  public final SparkMax m_turningMotor;
+  public final SparkMaxConfig m_turningConfig = new SparkMaxConfig();
 
   public final RelativeEncoder m_driveEncoder;
   public final DutyCycleEncoder m_turningEncoder;
+  private double m_turningEncoderOffset;
 
   public double driveMotorVoltage = 0;
   public double turnMotorVoltage = 0;
@@ -68,20 +72,19 @@ public class SwerveModule {
       int turningMotorChannel,
       int turningEncoderChannel,
       double turningEncoderOffset) {
-    m_driveMotor = new CANSparkMax(driveMotorChannel, MotorType.kBrushless);
-    m_driveMotor.setInverted(true);
-    m_turningMotor = new CANSparkMax(turningMotorChannel, MotorType.kBrushless);
-    m_turningMotor.setInverted(true);
+    m_driveMotor = new SparkMax(driveMotorChannel, MotorType.kBrushless);
+      m_driveConfig.inverted(true);
+      m_driveConfig.encoder.positionConversionFactor(2 * Math.PI * Constants.kWheelRadius / Constants.kGearRatio);
+      m_driveConfig.encoder.velocityConversionFactor(2 * Math.PI * Constants.kWheelRadius / Constants.kGearRatio / 60);   
+      m_driveMotor.configure(m_driveConfig, ResetMode.kResetSafeParameters, PersistMode.kPersistParameters);
+    
+    m_turningMotor = new SparkMax(turningMotorChannel, MotorType.kBrushless);
+      m_turningConfig.inverted(true);
+      m_turningMotor.configure(m_turningConfig, ResetMode.kResetSafeParameters, PersistMode.kPersistParameters);
 
     m_driveEncoder = m_driveMotor.getEncoder(); 
     m_turningEncoder = new DutyCycleEncoder(turningEncoderChannel);
 
-    // Set the distance per pulse for the drive encoder. We can simply use the
-    // distance traveled for one rotation of the wheel divided by the encoder
-    // resolution.  ***GET VELOCITY returns RPM in sparkmax***
-    // rpm -> m/s = rpm * m/rev * s / min
-    m_driveEncoder.setPositionConversionFactor(2 * Math.PI * Constants.kWheelRadius / Constants.kGearRatio);  //2 pi * .05 * 8.1 / 42 / 1.7 matches ok
-    m_driveEncoder.setVelocityConversionFactor(2 * Math.PI * Constants.kWheelRadius / Constants.kGearRatio / 60); // original 2pi * .0508 * 8.1 / 4096
 
     // Set the range of the turning encoder
     // Per REV docs, 1 - 1023 is the range of minimum & maximum (less 1us) pulses, 1025 is the output period
@@ -91,10 +94,11 @@ public class SwerveModule {
     // Set the distance (in this case, angle) in radians per pulse for the turning encoder.
     // This is the the angle through an entire rotation (2 * pi) divided by the
     // encoder resolution.
-    m_turningEncoder.setDistancePerRotation(2.0*Math.PI);   
+    //BREAKS in 2025// m_turningEncoder.setDistancePerRotation(2.0*Math.PI);   
 
     // Set the position offset for each Turning Encoder
-    m_turningEncoder.setPositionOffset(turningEncoderOffset);
+    //BREAKS in 2025 // m_turningEncoder.setPositionOffset(turningEncoderOffset);
+    m_turningEncoderOffset = turningEncoderOffset;
 
     
     // Limit the PID Controller's input range between -pi and pi and set the input
@@ -162,12 +166,13 @@ public class SwerveModule {
   public double getAdjustedAngle()
   {
     //I think the turning encoder is set up above with setting offset + dutycyclerange
-    return ((m_turningEncoder.getAbsolutePosition()-m_turningEncoder.getPositionOffset())*2*Math.PI);
+    // THIS BREAKS in 2025 return ((m_turningEncoder.getAbsolutePosition()-m_turningEncoder.getPositionOffset())*2*Math.PI);
+    return m_turningEncoder.get() - m_turningEncoderOffset;
   }
 
   public double getAbsAngle()
   {
-    return m_turningEncoder.getAbsolutePosition();
+    return m_turningEncoder.get();
   }
 
   public void putMotorVoltageData(double drive, double turn)
