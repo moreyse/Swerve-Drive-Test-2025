@@ -11,6 +11,7 @@ import edu.wpi.first.math.kinematics.SwerveDriveKinematics;
 import edu.wpi.first.math.kinematics.SwerveDriveOdometry;
 import edu.wpi.first.math.kinematics.SwerveModulePosition;
 import edu.wpi.first.math.kinematics.SwerveModuleState;
+import edu.wpi.first.wpilibj.ADXRS450_Gyro;
 import edu.wpi.first.wpilibj.AnalogGyro;
 import edu.wpi.first.wpilibj.smartdashboard.SmartDashboard;
 import edu.wpi.first.wpilibj2.command.SubsystemBase;
@@ -34,7 +35,7 @@ public class Drivetrain extends SubsystemBase {
                                                     3, .336); 
 
 
-  public final AnalogGyro m_gyro = new AnalogGyro(0);
+  public final ADXRS450_Gyro m_gyro = new ADXRS450_Gyro();
 
   public final SwerveDriveKinematics m_kinematics =
       new SwerveDriveKinematics(
@@ -142,6 +143,12 @@ public class Drivetrain extends SubsystemBase {
     SmartDashboard.putNumberArray("FR Command", m_frontRight.getMotorVoltageData());
     SmartDashboard.putNumberArray("BL Command", m_backLeft.getMotorVoltageData());
     SmartDashboard.putNumberArray("BR Command", m_backRight.getMotorVoltageData());
+
+    SmartDashboard.putNumber("FL Position", m_frontLeft.getPosition().distanceMeters);
+    SmartDashboard.putNumber("FR Position", m_frontRight.getPosition().distanceMeters);
+    SmartDashboard.putNumber("BL Position", m_backLeft.getPosition().distanceMeters);
+    SmartDashboard.putNumber("BR Position", m_backRight.getPosition().distanceMeters);
+
   }
 
   /** Updates the field relative position of the robot. */

@@ -26,6 +26,7 @@ import edu.wpi.first.wpilibj2.command.CommandScheduler;
 import edu.wpi.first.wpilibj2.command.Commands;
 import edu.wpi.first.wpilibj2.command.InstantCommand;
 import edu.wpi.first.wpilibj2.command.SwerveControllerCommand;
+import edu.wpi.first.wpilibj2.command.WaitCommand;
 import frc.robot.Constants.AutoConstants;
 
 public class Robot extends TimedRobot {
@@ -61,6 +62,8 @@ public class Robot extends TimedRobot {
     if (m_autonomousCommand != null) {
       m_autonomousCommand.schedule();
     }
+
+    
   }
 
   @Override
@@ -147,29 +150,50 @@ public class Robot extends TimedRobot {
   /* AUTO Stuff below here */
    public Command getAutonomousCommand() {
     // Create config for trajectory
-    TrajectoryConfig config = new TrajectoryConfig(
+    TrajectoryConfig fwdconfig = new TrajectoryConfig(
         AutoConstants.kMaxSpeedMetersPerSecond,
         AutoConstants.kMaxAccelerationMetersPerSecondSquared)
         // Add kinematics to ensure max speed is actually obeyed
         .setKinematics(m_swerve.m_kinematics);
+    
+    TrajectoryConfig backconfig = new TrajectoryConfig(
+      AutoConstants.kMaxSpeedMetersPerSecond,
+      AutoConstants.kMaxAccelerationMetersPerSecondSquared)
+      // Add kinematics to ensure max speed is actually obeyed
+      .setKinematics(m_swerve.m_kinematics).setReversed(true);
 
     // An example trajectory to follow. All units in meters.
-    Trajectory exampleTrajectory = TrajectoryGenerator.generateTrajectory(
+    Trajectory fwdTraj = TrajectoryGenerator.generateTrajectory(
         // Start at the origin facing the +X direction
         new Pose2d(0, 0, new Rotation2d(0)),
         // Pass through these two interior waypoints, making an 's' curve path
-        List.of(new Translation2d(.5, .5), new Translation2d(1, -.5)),
+        List.of(new Translation2d(.10, 0)),
         // End 1.5 meters straight ahead of where we started, facing forward
         new Pose2d(1.5, 0, new Rotation2d(0)),
-        config);
+        fwdconfig);
+
+      Trajectory backTraj = TrajectoryGenerator.generateTrajectory(
+          // Start at the origin facing the +X direction
+          new Pose2d(1.5, 0, new Rotation2d(0)),
+          // Pass through these two interior waypoints, making an 's' curve path
+          List.of(new Translation2d(.10, 0)),
+          // End 1.5 meters straight ahead of where we started, facing forward
+          new Pose2d(0, 0, new Rotation2d(0)),
+          backconfig);
+
+      //Trajectory conTrajectory = fwdTraj.concatenate(backTraj);
+
+      System.out.println(backTraj.sample(.5).velocityMetersPerSecond);
+      System.out.println(backTraj.sample(1).velocityMetersPerSecond);
+      System.out.println(backTraj.sample(1.5).velocityMetersPerSecond);
 
     var thetaController = new ProfiledPIDController(
         AutoConstants.kPThetaController, 0, 0, AutoConstants.kThetaControllerConstraints);
     thetaController.enableContinuousInput(-Math.PI, Math.PI);
 
-    SwerveControllerCommand swerveControllerCommand = 
+    SwerveControllerCommand swerveControllerCommand1 = 
     new SwerveControllerCommand(
-      exampleTrajectory,
+      fwdTraj,
       m_swerve::getPose,
       m_swerve.m_kinematics,
       // Position controllers
@@ -179,13 +203,31 @@ public class Robot extends TimedRobot {
       m_swerve::setModuleStates,
       m_swerve);
 
-
+      SwerveControllerCommand swerveControllerCommand2 = 
+      new SwerveControllerCommand(
+        backTraj,
+        m_swerve::getPose,
+        m_swerve.m_kinematics,
+        // Position controllers
+        new PIDController(AutoConstants.kPXController, 0, 0),
+        new PIDController(AutoConstants.kPYController, 0, 0),
+        thetaController,
+        m_swerve::setModuleStates,
+        m_swerve);
+  
 
         // Reset odometry to the initial pose of the trajectory, run path following
     // command, then stop at the end.
     return Commands.sequence(
-        new InstantCommand(() -> m_swerve.resetOdometry(exampleTrajectory.getInitialPose())),
-        swerveControllerCommand,
-        new InstantCommand(() -> m_swerve.drive(0, 0, 0, false, getPeriod())));
+        new InstantCommand(() -> m_swerve.resetOdometry(backTraj.getInitialPose())),
+        new InstantCommand(() -> System.out.println("Command 1")),
+        swerveControllerCommand1,
+        new InstantCommand(() -> System.out.println("Stop & Wait 3 seconds")),
+        new InstantCommand(() -> m_swerve.drive(0,0,0, false, getPeriod())).repeatedly().withTimeout(3),
+        new InstantCommand(() -> System.out.println("Command 2")),
+        swerveControllerCommand2,
+        new InstantCommand(() -> System.out.println("Stop & Wait .5 seconds")),
+        new InstantCommand(() -> m_swerve.drive(0, 0, 0, false, getPeriod())).repeatedly().withTimeout(.5),
+        new InstantCommand(() -> System.out.println("Done!")));
   }
 }

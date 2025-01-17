@@ -21,18 +21,17 @@ import com.revrobotics.spark.config.SparkMaxConfig;
 
 
 public class SwerveModule {
-   
+  
+  
+
   private static final double kModuleMaxAngularVelocity = 20*Constants.kTurnMotorMaxAngSpeed;
   private static final double kModuleMaxAngularAcceleration =  80*Constants.kTurnMotorMaxAngSpeed*2;
 
   public final SparkMax m_driveMotor;
-  public final SparkMaxConfig m_driveConfig = new SparkMaxConfig();
   public final SparkMax m_turningMotor;
-  public final SparkMaxConfig m_turningConfig = new SparkMaxConfig();
 
   public final RelativeEncoder m_driveEncoder;
   public final DutyCycleEncoder m_turningEncoder;
-  private double m_turningEncoderOffset;
 
   public double driveMotorVoltage = 0;
   public double turnMotorVoltage = 0;
@@ -41,6 +40,8 @@ public class SwerveModule {
   public double turnActMotorVoltage = 0;
 
   public SwerveModuleState optState;
+
+  public double m_turningEncoderOffset = 0;
 
   // Gains are for example purposes only - must be determined for your own robot!
   public final PIDController m_drivePIDController = new PIDController(2, 0, 0);  //.05, 0, 0
@@ -73,32 +74,31 @@ public class SwerveModule {
       int turningEncoderChannel,
       double turningEncoderOffset) {
     m_driveMotor = new SparkMax(driveMotorChannel, MotorType.kBrushless);
-      m_driveConfig.inverted(true);
-      m_driveConfig.encoder.positionConversionFactor(2 * Math.PI * Constants.kWheelRadius / Constants.kGearRatio);
-      m_driveConfig.encoder.velocityConversionFactor(2 * Math.PI * Constants.kWheelRadius / Constants.kGearRatio / 60);   
-      m_driveMotor.configure(m_driveConfig, ResetMode.kResetSafeParameters, PersistMode.kPersistParameters);
+    SparkMaxConfig m_driveMotorConfig = new SparkMaxConfig();
+    m_driveMotorConfig.inverted(true);
+    m_driveMotorConfig.encoder
+         .positionConversionFactor(2 * Math.PI * Constants.kWheelRadius / Constants.kGearRatio)  //2 pi * .05 * 8.1 / 42 / 1.7 matches ok
+         .velocityConversionFactor(2 * Math.PI * Constants.kWheelRadius / Constants.kGearRatio / 60); // original 2pi * .0508 * 8.1 / 4096
+    m_driveMotor.configure(m_driveMotorConfig, ResetMode.kResetSafeParameters, PersistMode.kPersistParameters);
     
     m_turningMotor = new SparkMax(turningMotorChannel, MotorType.kBrushless);
-      m_turningConfig.inverted(true);
-      m_turningMotor.configure(m_turningConfig, ResetMode.kResetSafeParameters, PersistMode.kPersistParameters);
+    SparkMaxConfig m_turningMotorConfig = new SparkMaxConfig();
+    m_turningMotorConfig.inverted(true);
+    m_turningMotor.configure(m_turningMotorConfig, ResetMode.kResetSafeParameters, PersistMode.kPersistParameters);
 
+    m_turningEncoderOffset = turningEncoderOffset;
     m_driveEncoder = m_driveMotor.getEncoder(); 
     m_turningEncoder = new DutyCycleEncoder(turningEncoderChannel);
 
-
+    // Set the distance per pulse for the drive encoder. We can simply use the
+    // distance traveled for one rotation of the wheel divided by the encoder
+    // resolution.  ***GET VELOCITY returns RPM in sparkmax***
+    // rpm -> m/s = rpm * m/rev * s / min
+    
     // Set the range of the turning encoder
     // Per REV docs, 1 - 1023 is the range of minimum & maximum (less 1us) pulses, 1025 is the output period
     // 1us is minimum (0 deg) & 1024us (360 deg) is the maximum pulse width
     m_turningEncoder.setDutyCycleRange(1.0/1025.0, 1024.0/1025.0);
-
-    // Set the distance (in this case, angle) in radians per pulse for the turning encoder.
-    // This is the the angle through an entire rotation (2 * pi) divided by the
-    // encoder resolution.
-    //BREAKS in 2025// m_turningEncoder.setDistancePerRotation(2.0*Math.PI);   
-
-    // Set the position offset for each Turning Encoder
-    //BREAKS in 2025 // m_turningEncoder.setPositionOffset(turningEncoderOffset);
-    m_turningEncoderOffset = turningEncoderOffset;
 
     
     // Limit the PID Controller's input range between -pi and pi and set the input
@@ -135,7 +135,8 @@ public class SwerveModule {
     var encoderRotation = new Rotation2d(getAdjustedAngle());
 
     // Optimize the reference state to avoid spinning further than 90 degrees
-    optState = SwerveModuleState.optimize(desiredState, encoderRotation);
+    optState = desiredState;
+    optState.optimize(encoderRotation);
 
     // Scale speed by cosine of angle error. This scales down movement perpendicular to the desired
     // direction of travel that can occur when modules change directions. This results in smoother
@@ -166,8 +167,7 @@ public class SwerveModule {
   public double getAdjustedAngle()
   {
     //I think the turning encoder is set up above with setting offset + dutycyclerange
-    // THIS BREAKS in 2025 return ((m_turningEncoder.getAbsolutePosition()-m_turningEncoder.getPositionOffset())*2*Math.PI);
-    return m_turningEncoder.get() - m_turningEncoderOffset;
+    return ((m_turningEncoder.get()-m_turningEncoderOffset)*2*Math.PI);
   }
 
   public double getAbsAngle()
