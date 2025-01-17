@@ -220,7 +220,7 @@ public class Robot extends TimedRobot {
     // command, then stop at the end.
     return Commands.sequence(
         new InstantCommand(() -> m_swerve.resetOdometry(backTraj.getInitialPose())),
-        new InstantCommand(() -> System.out.println("Command 1")),
+        new InstantCommand(() -> System.out.println("Command 1a")),
         swerveControllerCommand1,
         new InstantCommand(() -> System.out.println("Stop & Wait 3 seconds")),
         new InstantCommand(() -> m_swerve.drive(0,0,0, false, getPeriod())).repeatedly().withTimeout(3),
